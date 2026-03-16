@@ -1,9 +1,16 @@
-import { kv } from "@vercel/kv";
+import { Redis } from "@upstash/redis";
 import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import type { DayRecord } from "@/types";
 
 type RecordsMap = Record<string, Record<string, boolean>>;
+
+const redis = new Redis({
+  // Support both Vercel KV-style and Upstash-native env names.
+  url: process.env.KV_REST_API_URL ?? process.env.UPSTASH_REDIS_REST_URL ?? "",
+  token:
+    process.env.KV_REST_API_TOKEN ?? process.env.UPSTASH_REDIS_REST_TOKEN ?? "",
+});
 
 function getSyncHeader(request: NextRequest): string | null {
   const value = request.headers.get("x-sync-key")?.trim();
@@ -17,13 +24,13 @@ function getStoreKey(syncKey: string): string {
 
 async function loadRecords(syncKey: string): Promise<RecordsMap> {
   const key = getStoreKey(syncKey);
-  const map = await kv.get<RecordsMap>(key);
+  const map = await redis.get<RecordsMap>(key);
   return map ?? {};
 }
 
 async function saveRecords(syncKey: string, map: RecordsMap): Promise<void> {
   const key = getStoreKey(syncKey);
-  await kv.set(key, map);
+  await redis.set(key, map);
 }
 
 export async function GET(request: NextRequest) {
