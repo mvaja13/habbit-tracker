@@ -50,14 +50,16 @@ export function DayGrid({ month, records, onMonthChange }: DayGridProps) {
           const dateStr = format(day, "yyyy-MM-dd");
           const record = byDate.get(dateStr);
           const { score } = calculateDailyScore(record?.completions ?? {});
-          const qualified = score >= 0.8;
+          let toneClass = "bg-[var(--surface)] text-[var(--muted)] hover:bg-[var(--border)]";
+          if (score >= 0.9) toneClass = "bg-[#14532d] text-[#bbf7d0]";
+          else if (score >= 0.75) toneClass = "bg-[#166534] text-[#bbf7d0]";
+          else if (score >= 0.5) toneClass = "bg-[#15803d] text-[#dcfce7]";
+          else if (score > 0) toneClass = "bg-[#22c55e]/35 text-[#dcfce7]";
           return (
             <Link
               key={dateStr}
               href={`/today?date=${dateStr}`}
-              className={`flex aspect-square items-center justify-center rounded-lg text-sm transition-colors ${
-                qualified ? "bg-[var(--success)]/20 text-[var(--success)]" : "bg-[var(--surface)] text-[var(--muted)] hover:bg-[var(--border)]"
-              }`}
+              className={`flex aspect-square items-center justify-center rounded-lg text-sm transition-colors ${toneClass}`}
             >
               {format(day, "d")}
             </Link>
