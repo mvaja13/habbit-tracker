@@ -51,9 +51,12 @@ export function DayGrid({ month, records, onMonthChange }: DayGridProps) {
           const record = byDate.get(dateStr);
           const { score } = calculateDailyScore(record?.completions ?? {});
           let toneClass = "bg-[var(--surface)] text-[var(--muted)] hover:bg-[var(--border)]";
-          if (score >= 0.9) toneClass = "bg-[#14532d] text-[#bbf7d0]";
-          else if (score >= 0.75) toneClass = "bg-[#166534] text-[#bbf7d0]";
-          else if (score >= 0.5) toneClass = "bg-[#15803d] text-[#dcfce7]";
+          // GitHub-like heatmap: higher overall score (including extras) => darker green.
+          if (score >= 1.3) toneClass = "bg-[#052e16] text-[#bbf7d0]";
+          else if (score >= 1.15) toneClass = "bg-[#14532d] text-[#bbf7d0]";
+          else if (score >= 1.0) toneClass = "bg-[#166534] text-[#bbf7d0]";
+          else if (score >= 0.75) toneClass = "bg-[#15803d] text-[#dcfce7]";
+          else if (score >= 0.5) toneClass = "bg-[#16a34a] text-[#dcfce7]";
           else if (score > 0) toneClass = "bg-[#22c55e]/35 text-[#dcfce7]";
           return (
             <Link

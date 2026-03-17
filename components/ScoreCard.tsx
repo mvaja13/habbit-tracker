@@ -5,6 +5,8 @@ interface ScoreCardProps {
   dailyTotal: number;
   extraCompleted: number;
   extraTotal: number;
+  mainPercent: number;
+  bonusPercent: number;
   scorePercent: number;
 }
 
@@ -13,6 +15,8 @@ export function ScoreCard({
   dailyTotal,
   extraCompleted,
   extraTotal,
+  mainPercent,
+  bonusPercent,
   scorePercent,
 }: ScoreCardProps) {
   return (
@@ -28,6 +32,9 @@ export function ScoreCard({
         >
           {Math.round(scorePercent)}%
         </div>
+      </div>
+      <div className="mt-1 text-xs text-[var(--muted)]">
+        Main {Math.round(mainPercent)}% + Bonus {Math.round(bonusPercent)}%
       </div>
     </div>
   );

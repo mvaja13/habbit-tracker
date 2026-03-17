@@ -7,11 +7,13 @@ const EXTRA_WEIGHT = 1;
 const STREAK_THRESHOLD = 0.8;
 
 const maxDailyPoints = DAILY_HABITS.length * DAILY_WEIGHT;
-const maxExtraPoints = EXTRA_HABITS.length * EXTRA_WEIGHT;
-const maxTotalPoints = maxDailyPoints + maxExtraPoints;
 
 export function calculateDailyScore(completions: Record<string, boolean>): {
   score: number;
+  mainScore: number;
+  mainPercent: number;
+  bonusPercent: number;
+  totalPercent: number;
   dailyCompleted: number;
   extraCompleted: number;
   dailyTotal: number;
@@ -25,11 +27,22 @@ export function calculateDailyScore(completions: Record<string, boolean>): {
   EXTRA_HABITS.forEach((h) => {
     if (completions[h.id]) extraPoints += EXTRA_WEIGHT;
   });
-  const score = maxTotalPoints > 0 ? (dailyPoints + extraPoints) / maxTotalPoints : 0;
+  // Main score uses only compulsory daily habits (0-100%).
+  const mainScore = maxDailyPoints > 0 ? dailyPoints / maxDailyPoints : 0;
+  const mainPercent = mainScore * 100;
+  const extraCompleted = Math.floor(extraPoints / EXTRA_WEIGHT);
+  // Extras add bonus points above 100. Each extra completed adds +1%.
+  const bonusPercent = extraCompleted;
+  const totalPercent = mainPercent + bonusPercent;
+  const score = totalPercent / 100;
   return {
     score,
+    mainScore,
+    mainPercent,
+    bonusPercent,
+    totalPercent,
     dailyCompleted: Math.floor(dailyPoints / DAILY_WEIGHT),
-    extraCompleted: Math.floor(extraPoints / EXTRA_WEIGHT),
+    extraCompleted,
     dailyTotal: DAILY_HABITS.length,
     extraTotal: EXTRA_HABITS.length,
   };
@@ -43,8 +56,8 @@ export function getStreak(records: DayRecord[]): { current: number; best: number
     const d = subDays(today, i);
     const date = format(d, "yyyy-MM-dd");
     const record = byDate.get(date);
-    const { score } = calculateDailyScore(record?.completions ?? {});
-    if (score >= STREAK_THRESHOLD) current++;
+    const { mainScore } = calculateDailyScore(record?.completions ?? {});
+    if (mainScore >= STREAK_THRESHOLD) current++;
     else break;
   }
   const sorted = [...records].sort((a, b) => a.date.localeCompare(b.date));
@@ -52,9 +65,9 @@ export function getStreak(records: DayRecord[]): { current: number; best: number
   let running = 0;
   let prevDate = "";
   for (const r of sorted) {
-    const { score } = calculateDailyScore(r.completions ?? {});
+    const { mainScore } = calculateDailyScore(r.completions ?? {});
     const gap = prevDate ? daysBetween(prevDate, r.date) : 1;
-    if (score >= STREAK_THRESHOLD) {
+    if (mainScore >= STREAK_THRESHOLD) {
       running = gap === 1 ? running + 1 : 1;
       best = Math.max(best, running);
     } else running = 0;

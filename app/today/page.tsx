@@ -56,8 +56,15 @@ function TodayContent() {
     }
   }
 
-  const { score, dailyCompleted, extraCompleted, dailyTotal, extraTotal } =
-    calculateDailyScore(completions);
+  const {
+    score,
+    mainPercent,
+    bonusPercent,
+    dailyCompleted,
+    extraCompleted,
+    dailyTotal,
+    extraTotal,
+  } = calculateDailyScore(completions);
 
   if (!ready) {
     return (
@@ -116,6 +123,8 @@ function TodayContent() {
             dailyTotal={dailyTotal}
             extraCompleted={extraCompleted}
             extraTotal={extraTotal}
+            mainPercent={mainPercent}
+            bonusPercent={bonusPercent}
             scorePercent={score * 100}
           />
         </div>

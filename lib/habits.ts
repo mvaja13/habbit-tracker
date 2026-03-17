@@ -33,6 +33,9 @@ export const HABITS: Habit[] = [
   { id: "freelancing-tasks", name: "Freelancing Project tasks", category: "extra", order: 31 },
   { id: "dhwaniagent-tasks", name: "Dhwaniagent Tasks", category: "extra", order: 32 },
   { id: "cost-estimator-tasks", name: "Cost estimator tasks", category: "extra", order: 33 },
+  { id: "cloth-washing", name: "Cloth washing", category: "extra", order: 34 },
+  { id: "room-cleaning", name: "Room cleaning", category: "extra", order: 35 },
+  { id: "cooking", name: "Cooking", category: "extra", order: 36 },
 ];
 
 export const DAILY_HABITS = HABITS.filter((h) => h.category === "daily");
