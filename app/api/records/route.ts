@@ -1,4 +1,5 @@
 import { Redis } from "@upstash/redis";
+import { eachDayOfInterval, format, parseISO } from "date-fns";
 import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import type { DayRecord } from "@/types";
@@ -22,16 +23,33 @@ function getStoreKey(syncKey: string): string {
   return `habit-records:${hashed}`;
 }
 
-async function loadRecords(syncKey: string): Promise<RecordsMap> {
+/** Per-day Redis hash: atomic updates avoid lost writes under concurrent serverless invocations */
+function getDayHashKey(syncKey: string, date: string): string {
+  const hashed = createHash("sha256").update(syncKey).digest("hex");
+  return `habit-day:${hashed}:${date}`;
+}
+
+function parseDayHash(entries: Record<string, string>): Record<string, boolean> {
+  const out: Record<string, boolean> = {};
+  for (const [habitId, v] of Object.entries(entries)) {
+    out[habitId] = v === "1";
+  }
+  return out;
+}
+
+async function loadLegacyRecords(syncKey: string): Promise<RecordsMap> {
   const key = getStoreKey(syncKey);
   const map = await redis.get<RecordsMap>(key);
   return map ?? {};
 }
 
-async function saveRecords(syncKey: string, map: RecordsMap): Promise<void> {
-  const key = getStoreKey(syncKey);
-  await redis.set(key, map);
+function listDatesInclusive(startDate: string, endDate: string): string[] {
+  const start = parseISO(startDate);
+  const end = parseISO(endDate);
+  if (start > end) return [];
+  return eachDayOfInterval({ start, end }).map((d) => format(d, "yyyy-MM-dd"));
 }
+
 
 export async function GET(request: NextRequest) {
   const syncKey = getSyncHeader(request);
@@ -47,19 +65,48 @@ export async function GET(request: NextRequest) {
   const startDate = params.get("startDate");
   const endDate = params.get("endDate");
 
-  const map = await loadRecords(syncKey);
-
   if (date) {
-    const completions = map[date];
-    const record: DayRecord | null = completions ? { date, completions } : null;
+    const [legacyMap, hashEntries] = await Promise.all([
+      loadLegacyRecords(syncKey),
+      redis.hgetall<Record<string, string>>(getDayHashKey(syncKey, date)),
+    ]);
+    const fromHash =
+      hashEntries && Object.keys(hashEntries).length > 0 ? parseDayHash(hashEntries) : {};
+    const completions = { ...(legacyMap[date] ?? {}), ...fromHash };
+    const record: DayRecord | null =
+      Object.keys(completions).length > 0 ? { date, completions } : null;
     return NextResponse.json({ record });
   }
 
   if (startDate && endDate) {
-    const records = Object.keys(map)
-      .filter((d) => d >= startDate && d <= endDate)
-      .sort((a, b) => a.localeCompare(b))
-      .map((d) => ({ date: d, completions: map[d] }));
+    const legacyMap = await loadLegacyRecords(syncKey);
+    const dates = listDatesInclusive(startDate, endDate);
+
+    type HashRow = Record<string, string>;
+
+    let hashRows: HashRow[];
+    if (dates.length === 0) {
+      hashRows = [];
+    } else {
+      const pipeline = redis.pipeline();
+      for (const d of dates) {
+        pipeline.hgetall<HashRow>(getDayHashKey(syncKey, d));
+      }
+      hashRows = await pipeline.exec();
+    }
+
+    const records = dates.flatMap((d, i) => {
+      const raw = hashRows[i];
+      const fromHash =
+        raw && typeof raw === "object" && Object.keys(raw).length > 0
+          ? parseDayHash(raw as HashRow)
+          : {};
+      const completions = { ...(legacyMap[d] ?? {}), ...fromHash };
+      return Object.keys(completions).length > 0
+        ? [{ date: d, completions }]
+        : [];
+    });
+
     return NextResponse.json({ records });
   }
 
@@ -91,10 +138,10 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const map = await loadRecords(syncKey);
-  const existing = map[body.date] ?? {};
-  map[body.date] = { ...existing, [body.habitId]: body.completed };
-  await saveRecords(syncKey, map);
+  /** Atomic merge at the field level; avoids losing other habits when concurrent POSTs overlap. */
+  await redis.hset(getDayHashKey(syncKey, body.date), {
+    [body.habitId]: body.completed ? "1" : "0",
+  });
 
   return NextResponse.json({ ok: true });
 }

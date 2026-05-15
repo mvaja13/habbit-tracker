@@ -20,7 +20,6 @@ function TodayContent() {
   });
   const [completions, setCompletions] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const { ready, syncKey, setSyncKey, clearSyncKey } = useSyncKey();
 
   const dateStr = format(selectedDate, "yyyy-MM-dd");
@@ -42,17 +41,18 @@ function TodayContent() {
   }, [ready, syncKey, dateStr]);
 
   async function handleToggle(habitId: string) {
-    if (!syncKey || saving) return;
-    const next = !completions[habitId];
-    const previous = completions;
-    setCompletions((prev) => ({ ...prev, [habitId]: next }));
-    setSaving(true);
+    if (!syncKey) return;
+    let snapshot: Record<string, boolean>;
+    let next: boolean;
+    setCompletions((prev) => {
+      snapshot = { ...prev };
+      next = !prev[habitId];
+      return { ...prev, [habitId]: next };
+    });
     try {
-      await upsertCompletion(syncKey, dateStr, habitId, next);
+      await upsertCompletion(syncKey, dateStr, habitId, next!);
     } catch {
-      setCompletions(previous);
-    } finally {
-      setSaving(false);
+      setCompletions(snapshot!);
     }
   }
 
