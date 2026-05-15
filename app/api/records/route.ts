@@ -29,10 +29,22 @@ function getDayHashKey(syncKey: string, date: string): string {
   return `habit-day:${hashed}:${date}`;
 }
 
-function parseDayHash(entries: Record<string, string>): Record<string, boolean> {
+/** Upstash deserializes Redis string values with JSON.parse, so "1" becomes number 1 — not string "1". */
+function hashFieldToCompleted(v: unknown): boolean {
+  if (v === true || v === "1" || v === 1) return true;
+  if (v === false || v === "0" || v === 0) return false;
+  if (typeof v === "string") {
+    const trimmed = v.trim();
+    if (trimmed === "1" || trimmed === "true") return true;
+    if (trimmed === "0" || trimmed === "false") return false;
+  }
+  return false;
+}
+
+function parseDayHash(entries: Record<string, unknown>): Record<string, boolean> {
   const out: Record<string, boolean> = {};
   for (const [habitId, v] of Object.entries(entries)) {
-    out[habitId] = v === "1";
+    out[habitId] = hashFieldToCompleted(v);
   }
   return out;
 }
@@ -68,7 +80,7 @@ export async function GET(request: NextRequest) {
   if (date) {
     const [legacyMap, hashEntries] = await Promise.all([
       loadLegacyRecords(syncKey),
-      redis.hgetall<Record<string, string>>(getDayHashKey(syncKey, date)),
+      redis.hgetall<Record<string, unknown>>(getDayHashKey(syncKey, date)),
     ]);
     const fromHash =
       hashEntries && Object.keys(hashEntries).length > 0 ? parseDayHash(hashEntries) : {};
@@ -82,7 +94,7 @@ export async function GET(request: NextRequest) {
     const legacyMap = await loadLegacyRecords(syncKey);
     const dates = listDatesInclusive(startDate, endDate);
 
-    type HashRow = Record<string, string>;
+    type HashRow = Record<string, unknown>;
 
     let hashRows: HashRow[];
     if (dates.length === 0) {
@@ -99,7 +111,7 @@ export async function GET(request: NextRequest) {
       const raw = hashRows[i];
       const fromHash =
         raw && typeof raw === "object" && Object.keys(raw).length > 0
-          ? parseDayHash(raw as HashRow)
+          ? parseDayHash(raw)
           : {};
       const completions = { ...(legacyMap[d] ?? {}), ...fromHash };
       return Object.keys(completions).length > 0
